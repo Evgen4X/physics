@@ -1,9 +1,15 @@
 package physics.collision;
 
+import javafx.event.EventHandler;
+
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -35,22 +41,12 @@ class Sprite extends Rectangle {
         this.setWidth(w);
         this.setHeight(h);
         this.setFill(fill_color);
-
-        System.out.println(this.v[0]);
-        System.out.println(this.v[1]);
-
     }
 
-    public boolean collidesX(Sprite other) {
+    public boolean collides(Sprite other) {
         return (this.x >= other.x && this.x <= other.x + other.w ||
                 other.x >= this.x && other.x <= this.x + this.w) &&
                 (other.y <= this.y && this.y <= other.y + other.h || this.y + this.h >= other.y && other.y >= this.y);
-    }
-
-    public boolean collidesY(Sprite other) {
-        return (this.y >= other.y && this.y <= other.y + other.h ||
-                other.y >= this.y && other.y <= this.y + this.h) &&
-                (other.x <= this.x && this.x <= other.x + other.w || this.x + this.w >= other.x && other.x >= this.x);
     }
 
     public void move(Sprite[] sprites) {
@@ -71,38 +67,34 @@ class Sprite extends Rectangle {
 
         for (Sprite sprite : sprites) {
             if (this.this_id != sprite.this_id) {
-                if (this.v[0] != 0 && this.collidesX(sprite)) {
-                    double new_speed = (this.m - sprite.m) * this.v[0] / (this.m + sprite.m)
+                if ((this.v[0] != 0 || this.v[1] != 0) && this.collides(sprite)) {
+                    double new_speedX = (this.m - sprite.m) * this.v[0] / (this.m + sprite.m)
                             + (2 * sprite.m) * sprite.v[0] / (this.m + sprite.m);
-
-                    double new_sprite_speed = (sprite.m - this.m) * sprite.v[0] / (this.m + sprite.m)
-                            + (2 * this.m) * this.v[0] / (this.m + sprite.m);
-
-                    if (this.v[0] * new_speed < 0) {
-                        this.a[0] = -this.a[0];
-                    }
-                    this.v[0] = new_speed;
-
-                    if (this.v[0] * new_sprite_speed < 0) {
-                        sprite.a[0] = -sprite.a[0];
-                    }
-                    sprite.v[0] = new_sprite_speed;
-                } else if (this.v[1] != 0 && this.collidesY(sprite)) {
-                    double new_speed = (this.m - sprite.m) * this.v[1] / (this.m + sprite.m)
+                    double new_speedY = (this.m - sprite.m) * this.v[1] / (this.m + sprite.m)
                             + (2 * sprite.m) * sprite.v[1] / (this.m + sprite.m);
 
-                    double new_sprite_speed = (sprite.m - this.m) * sprite.v[1] / (this.m + sprite.m)
+                    double new_sprite_speedX = (sprite.m - this.m) * sprite.v[0] / (this.m + sprite.m)
+                            + (2 * this.m) * this.v[0] / (this.m + sprite.m);
+                    double new_sprite_speedY = (sprite.m - this.m) * sprite.v[1] / (this.m + sprite.m)
                             + (2 * this.m) * this.v[1] / (this.m + sprite.m);
 
-                    if (this.v[1] * new_speed < 1) {
+                    if (this.v[0] * new_speedX < 0) {
+                        this.a[0] = -this.a[0];
+                    }
+                    this.v[0] = new_speedX;
+                    if (this.v[1] * new_speedY < 0) {
                         this.a[1] = -this.a[1];
                     }
-                    this.v[1] = new_speed;
+                    this.v[1] = new_speedY;
 
-                    if (this.v[1] * new_sprite_speed < 0) {
+                    if (this.v[0] * new_sprite_speedX < 0) {
+                        sprite.a[0] = -sprite.a[0];
+                    }
+                    sprite.v[0] = new_sprite_speedX;
+                    if (this.v[1] * new_sprite_speedY < 0) {
                         sprite.a[1] = -sprite.a[1];
                     }
-                    sprite.v[1] = new_sprite_speed;
+                    sprite.v[1] = new_sprite_speedY;
                 }
             }
         }
@@ -128,6 +120,9 @@ public class collision extends Application {
     public double width;
     public double height;
     private Sprite[] sprites;
+    private double[] RClicked = new double[] { -1, -1 };
+    private double[] LClicked = new double[] { -1, -1 };
+    private boolean is_shifted = false;
 
     public void start(Stage stage) {
 
@@ -143,15 +138,87 @@ public class collision extends Application {
         width = rect.getWidth();
         height = rect.getHeight();
 
-        sprite1 = new Sprite(width / 2 - 500, height / 2, 100, 100, Color.RED, new double[] { 0, 2 },
+        sprite1 = new Sprite(width / 2 - 500, height / 2, 100, 100, Color.RED, new double[] { 0, 0 },
                 new double[] { 0, 0 }, 50, width, height);
-        sprite2 = new Sprite(width / 2 + 500, height / 2, 100, 100, Color.BLUE, new double[] { -3, 0 },
+        sprite2 = new Sprite(width / 2 + 500, height / 2, 100, 100, Color.BLUE, new double[] { 0, 0 },
                 new double[] { 0, 0 }, 100, width, height);
 
         sprites = new Sprite[] { sprite1, sprite2 };
         root.getChildren().addAll(sprites);
 
         stage.show();
+
+        EventHandler<MouseEvent> LMBClick = new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent event) {
+                // TODO: acceleration on mousewheel (ctrl to switch)
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    LClicked[0] = event.getX();
+                    LClicked[1] = event.getY();
+                } else if (event.getButton() == MouseButton.SECONDARY) {
+                    RClicked[0] = event.getX();
+                    RClicked[1] = event.getY();
+                }
+            }
+        };
+
+        EventHandler<MouseEvent> LMBRelease = new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent event) {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    if (LClicked[0] != -1 && LClicked[1] != -1) {
+                        sprite1.x = LClicked[0];
+                        sprite1.y = LClicked[1];
+                        double dx = event.getX() - LClicked[0];
+                        double dy = event.getY() - LClicked[1];
+                        if (is_shifted) {
+                            if (dx > dy) {
+                                dy = 0;
+                            } else {
+                                dx = 0;
+                            }
+                        }
+                        sprite1.v[0] = dx / 100;
+                        sprite1.v[1] = dy / 100;
+                    }
+                } else if (event.getButton() == MouseButton.SECONDARY) {
+                    if (RClicked[0] != -1 && RClicked[1] != -1) {
+                        sprite2.x = RClicked[0];
+                        sprite2.y = RClicked[1];
+                        double dx = event.getX() - RClicked[0];
+                        double dy = event.getY() - RClicked[1];
+                        sprite2.v[0] = dx / 100;
+                        sprite2.v[1] = dy / 100;
+                    }
+                }
+            }
+        };
+
+        EventHandler<KeyEvent> keyPressed = new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent event) {
+                System.out.println(event.getCode());
+                if (event.getCode() == KeyCode.SHIFT) {
+                    is_shifted = true;
+                    System.out.println("true");
+                }
+            }
+        };
+
+        EventHandler<KeyEvent> keyReleased = new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent event) {
+                if (event.getCode() == KeyCode.SHIFT) {
+                    is_shifted = false;
+                    System.out.println("false");
+                }
+            }
+        };
+
+        root.addEventHandler(MouseEvent.MOUSE_PRESSED, LMBClick);
+        root.addEventHandler(MouseEvent.MOUSE_RELEASED, LMBRelease);
+        root.addEventHandler(KeyEvent.KEY_PRESSED, keyPressed);
+        root.addEventHandler(KeyEvent.KEY_RELEASED, keyReleased);
 
         new AnimationTimer() {
             @Override
