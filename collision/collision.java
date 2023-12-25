@@ -1,15 +1,18 @@
 package physics.collision;
 
 import javafx.event.EventHandler;
-
+import FX.calculator.time;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -23,6 +26,7 @@ class Sprite extends Rectangle {
     public double width, height;
     private static int id = 0;
     protected int this_id;
+    protected long lastCollisionTime;
 
     public Sprite(double x, double y, double w, double h, Color fill_color, double[] v, double[] a, double m,
             double max_width, double max_height) {
@@ -41,6 +45,7 @@ class Sprite extends Rectangle {
         this.setWidth(w);
         this.setHeight(h);
         this.setFill(fill_color);
+        lastCollisionTime = System.currentTimeMillis();
     }
 
     public boolean collides(Sprite other) {
@@ -57,60 +62,41 @@ class Sprite extends Rectangle {
         v[1] += a[1];
 
         if (x <= 0 || x + w >= width) {
-            v[0] = -v[0];
-            a[0] = -a[0];
+            v[0] = -v[0] + a[0];
         }
-        if (y <= 0 || y + h >= height - 50) {
-            v[1] = -v[1];
-            a[1] = -a[1];
+        if (y <= 0 || y + h >= height - 60) {
+            v[1] = -v[1] + a[1];
         }
 
+        long time = System.currentTimeMillis();
         for (Sprite sprite : sprites) {
-            if (this.this_id != sprite.this_id) {
-                if ((this.v[0] != 0 || this.v[1] != 0) && this.collides(sprite)) {
-                    double new_speedX = (this.m - sprite.m) * this.v[0] / (this.m + sprite.m)
-                            + (2 * sprite.m) * sprite.v[0] / (this.m + sprite.m);
-                    double new_speedY = (this.m - sprite.m) * this.v[1] / (this.m + sprite.m)
-                            + (2 * sprite.m) * sprite.v[1] / (this.m + sprite.m);
+            if (time - this.lastCollisionTime > 10 && time - sprite.lastCollisionTime > 10) {
+                if (this.this_id != sprite.this_id) {
+                    if ((this.v[0] != 0 || this.v[1] != 0) && this.collides(sprite)) {
+                        double new_speedX = (this.m - sprite.m) * this.v[0] / (this.m + sprite.m)
+                                + (2 * sprite.m) * sprite.v[0] / (this.m + sprite.m);
+                        double new_speedY = (this.m - sprite.m) * this.v[1] / (this.m + sprite.m)
+                                + (2 * sprite.m) * sprite.v[1] / (this.m + sprite.m);
 
-                    double new_sprite_speedX = (sprite.m - this.m) * sprite.v[0] / (this.m + sprite.m)
-                            + (2 * this.m) * this.v[0] / (this.m + sprite.m);
-                    double new_sprite_speedY = (sprite.m - this.m) * sprite.v[1] / (this.m + sprite.m)
-                            + (2 * this.m) * this.v[1] / (this.m + sprite.m);
+                        double new_sprite_speedX = (sprite.m - this.m) * sprite.v[0] / (this.m + sprite.m)
+                                + (2 * this.m) * this.v[0] / (this.m + sprite.m);
+                        double new_sprite_speedY = (sprite.m - this.m) * sprite.v[1] / (this.m + sprite.m)
+                                + (2 * this.m) * this.v[1] / (this.m + sprite.m);
 
-                    if (this.v[0] * new_speedX < 0) {
-                        this.a[0] = -this.a[0];
-                    }
-                    this.v[0] = new_speedX;
-                    if (this.v[1] * new_speedY < 0) {
-                        this.a[1] = -this.a[1];
-                    }
-                    this.v[1] = new_speedY;
+                        this.v[0] = new_speedX;
+                        this.v[1] = new_speedY;
+                        sprite.v[0] = new_sprite_speedX;
+                        sprite.v[1] = new_sprite_speedY;
 
-                    if (this.v[0] * new_sprite_speedX < 0) {
-                        sprite.a[0] = -sprite.a[0];
+                        this.lastCollisionTime = System.currentTimeMillis();
+                        sprite.lastCollisionTime = System.currentTimeMillis();
                     }
-                    sprite.v[0] = new_sprite_speedX;
-                    if (this.v[1] * new_sprite_speedY < 0) {
-                        sprite.a[1] = -sprite.a[1];
-                    }
-                    sprite.v[1] = new_sprite_speedY;
                 }
             }
         }
 
-        if (Math.abs(v[0]) <= 0.02) {
-            a[0] = 0;
-            v[0] = 0;
-        }
-        if (Math.abs(v[1]) <= 0.02) {
-            a[1] = 0;
-            v[1] = 0;
-        }
-
         this.setLayoutX(x);
         this.setLayoutY(y);
-        // System.out.printf("(%f, %f)\n", this.x, this.y);
     }
 }
 
@@ -123,6 +109,8 @@ public class collision extends Application {
     private double[] RClicked = new double[] { -1, -1 };
     private double[] LClicked = new double[] { -1, -1 };
     private boolean is_shifted = false;
+    private boolean is_controled = false;
+    private boolean is_spaced = false;
 
     public void start(Stage stage) {
 
@@ -148,10 +136,31 @@ public class collision extends Application {
 
         stage.show();
 
+        EventHandler<ScrollEvent> WheelScroll = new EventHandler<ScrollEvent>() {
+            @Override
+            public void handle(ScrollEvent event) {
+                double delta = event.getDeltaY() / 100;
+                if (is_controled) {
+                    if (is_spaced) {
+                        sprite2.v[1] += (sprite2.v[1] < 0 ? -1 : 1) * delta;
+                    } else {
+                        sprite2.v[0] += (sprite2.v[0] < 0 ? -1 : 1) * delta;
+                    }
+                }
+                if (!is_controled) {
+                    if (is_spaced) {
+                        sprite1.v[1] += (sprite1.v[1] < 0 ? -1 : 1) * delta;
+                    } else {
+                        sprite1.v[0] += (sprite1.v[0] < 0 ? -1 : 1) * delta;
+                    }
+                }
+            }
+        };
+
         EventHandler<MouseEvent> LMBClick = new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent event) {
-                // TODO: acceleration on mousewheel (ctrl to switch)
+                // TODO: acceleration control (ctrl to switch)
                 if (event.getButton() == MouseButton.PRIMARY) {
                     LClicked[0] = event.getX();
                     LClicked[1] = event.getY();
@@ -172,7 +181,7 @@ public class collision extends Application {
                         double dx = event.getX() - LClicked[0];
                         double dy = event.getY() - LClicked[1];
                         if (is_shifted) {
-                            if (dx > dy) {
+                            if (Math.abs(dx) > Math.abs(dy)) {
                                 dy = 0;
                             } else {
                                 dx = 0;
@@ -187,6 +196,13 @@ public class collision extends Application {
                         sprite2.y = RClicked[1];
                         double dx = event.getX() - RClicked[0];
                         double dy = event.getY() - RClicked[1];
+                        if (is_shifted) {
+                            if (Math.abs(dx) > Math.abs(dy)) {
+                                dy = 0;
+                            } else {
+                                dx = 0;
+                            }
+                        }
                         sprite2.v[0] = dx / 100;
                         sprite2.v[1] = dy / 100;
                     }
@@ -197,10 +213,42 @@ public class collision extends Application {
         EventHandler<KeyEvent> keyPressed = new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent event) {
-                System.out.println(event.getCode());
                 if (event.getCode() == KeyCode.SHIFT) {
                     is_shifted = true;
-                    System.out.println("true");
+                }
+                if (event.getCode() == KeyCode.CONTROL) {
+                    is_controled = true;
+                }
+                if (event.getCode() == KeyCode.SPACE) {
+                    is_spaced = true;
+                }
+                if (event.getCode() == KeyCode.RIGHT) {
+                    if (is_controled) {
+                        sprite2.x += 5;
+                    } else {
+                        sprite1.x += 5;
+                    }
+                }
+                if (event.getCode() == KeyCode.LEFT) {
+                    if (is_controled) {
+                        sprite2.x -= 5;
+                    } else {
+                        sprite1.x -= 5;
+                    }
+                }
+                if (event.getCode() == KeyCode.UP) {
+                    if (is_controled) {
+                        sprite2.y -= 5;
+                    } else {
+                        sprite1.y -= 5;
+                    }
+                }
+                if (event.getCode() == KeyCode.DOWN) {
+                    if (is_controled) {
+                        sprite2.y += 5;
+                    } else {
+                        sprite1.y += 5;
+                    }
                 }
             }
         };
@@ -210,15 +258,38 @@ public class collision extends Application {
             public void handle(KeyEvent event) {
                 if (event.getCode() == KeyCode.SHIFT) {
                     is_shifted = false;
-                    System.out.println("false");
+                } else if (event.getCode() == KeyCode.CONTROL) {
+                    is_controled = false;
+                } else if (event.getCode() == KeyCode.SPACE) {
+                    is_spaced = false;
                 }
             }
         };
 
-        root.addEventHandler(MouseEvent.MOUSE_PRESSED, LMBClick);
-        root.addEventHandler(MouseEvent.MOUSE_RELEASED, LMBRelease);
-        root.addEventHandler(KeyEvent.KEY_PRESSED, keyPressed);
-        root.addEventHandler(KeyEvent.KEY_RELEASED, keyReleased);
+        ChangeListener<Number> StageWidthChanged = new ChangeListener<Number>() {
+            @Override
+            public void changed(ObservableValue<? extends Number> observable, Number old_v, Number new_v) {
+                sprite1.width = (double) new_v;
+                sprite2.width = (double) new_v;
+            }
+        };
+
+        ChangeListener<Number> StageHeightChanged = new ChangeListener<Number>() {
+            @Override
+            public void changed(ObservableValue<? extends Number> observable, Number old_v, Number new_v) {
+                sprite1.height = (double) new_v;
+                sprite2.height = (double) new_v;
+            }
+        };
+
+        stage.widthProperty().addListener(StageWidthChanged);
+        stage.heightProperty().addListener(StageHeightChanged);
+
+        scene.addEventHandler(MouseEvent.MOUSE_PRESSED, LMBClick);
+        scene.addEventHandler(MouseEvent.MOUSE_RELEASED, LMBRelease);
+        scene.addEventHandler(ScrollEvent.SCROLL, WheelScroll);
+        scene.setOnKeyPressed(keyPressed);
+        scene.setOnKeyReleased(keyReleased);
 
         new AnimationTimer() {
             @Override
