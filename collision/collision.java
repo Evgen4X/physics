@@ -1,7 +1,6 @@
 package physics.collision;
 
 import javafx.event.EventHandler;
-import FX.calculator.time;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.beans.value.ChangeListener;
@@ -111,6 +110,8 @@ public class collision extends Application {
     private boolean is_shifted = false;
     private boolean is_controled = false;
     private boolean is_spaced = false;
+    private boolean is_tabbed = false;
+    private boolean multiplication_state = false;
 
     public void start(Stage stage) {
 
@@ -140,18 +141,53 @@ public class collision extends Application {
             @Override
             public void handle(ScrollEvent event) {
                 double delta = event.getDeltaY() / 100;
-                if (is_controled) {
-                    if (is_spaced) {
-                        sprite2.v[1] += (sprite2.v[1] < 0 ? -1 : 1) * delta;
-                    } else {
-                        sprite2.v[0] += (sprite2.v[0] < 0 ? -1 : 1) * delta;
+                if (is_tabbed) {
+                    if (is_controled) {
+                        if (multiplication_state) {
+                            delta = Math.ceil(delta * 4);
+                            if (delta < 0) {
+                                delta = 1 / Math.abs(delta);
+                            }
+                            sprite2.m = Math.max(0, sprite2.m * delta);
+                        } else {
+                            sprite2.m = Math.max(0, sprite2.m + Math.ceil(delta * 4));
+                        }
+                        System.out.println(sprite2.m);
                     }
-                }
-                if (!is_controled) {
-                    if (is_spaced) {
-                        sprite1.v[1] += (sprite1.v[1] < 0 ? -1 : 1) * delta;
-                    } else {
-                        sprite1.v[0] += (sprite1.v[0] < 0 ? -1 : 1) * delta;
+                    if (!is_controled) {
+                        if (multiplication_state) {
+                            delta = Math.ceil(delta * 4);
+                            if (delta < 0) {
+                                delta = 1 / Math.abs(delta);
+                            }
+                            sprite1.m = Math.max(0, sprite1.m * delta);
+                        } else {
+                            sprite1.m = Math.max(0, sprite1.m + Math.ceil(delta * 4));
+                        }
+                        System.out.println(sprite1.m);
+                    }
+                } else {
+                    if (is_controled) {
+                        if (is_spaced) {
+                            if (multiplication_state) {
+                                sprite2.v[1] *= (sprite2.v[1] < 0 ? -1 : 1) * delta;
+                            } else {
+                                sprite2.v[1] += (sprite2.v[1] < 0 ? -1 : 1) * delta;
+                            }
+                        } else {
+                            if (multiplication_state) {
+                                sprite2.v[0] *= (sprite2.v[0] < 0 ? -1 : 1) * delta;
+                            } else {
+                                sprite2.v[0] += (sprite2.v[0] < 0 ? -1 : 1) * delta;
+                            }
+                        }
+                    }
+                    if (!is_controled) {
+                        if (is_spaced) {
+                            sprite1.v[1] += (sprite1.v[1] < 0 ? -1 : 1) * delta;
+                        } else {
+                            sprite1.v[0] += (sprite1.v[0] < 0 ? -1 : 1) * delta;
+                        }
                     }
                 }
             }
@@ -160,7 +196,6 @@ public class collision extends Application {
         EventHandler<MouseEvent> LMBClick = new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent event) {
-                // TODO: acceleration control (ctrl to switch)
                 if (event.getButton() == MouseButton.PRIMARY) {
                     LClicked[0] = event.getX();
                     LClicked[1] = event.getY();
@@ -222,6 +257,9 @@ public class collision extends Application {
                 if (event.getCode() == KeyCode.SPACE) {
                     is_spaced = true;
                 }
+                if (event.getCode() == KeyCode.TAB) {
+                    is_tabbed = true;
+                }
                 if (event.getCode() == KeyCode.RIGHT) {
                     if (is_controled) {
                         sprite2.x += 5;
@@ -262,6 +300,10 @@ public class collision extends Application {
                     is_controled = false;
                 } else if (event.getCode() == KeyCode.SPACE) {
                     is_spaced = false;
+                } else if (event.getCode() == KeyCode.TAB) {
+                    is_tabbed = false;
+                } else if (event.getCode() == KeyCode.M) {
+                    multiplication_state = !multiplication_state;
                 }
             }
         };
